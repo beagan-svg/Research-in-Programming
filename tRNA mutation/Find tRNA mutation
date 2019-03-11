@@ -1,0 +1,284 @@
+# /Users/beagannguy/desktop/BME_160
+# Name: Beagan Nguy(bnguy)
+# Group Members: none
+
+import sys
+import time
+
+''' Given FastAReader'''
+class FastAreader :
+    
+    def __init__ (self, fname=''):
+        '''contructor: saves attribute fname '''
+        self.fname = fname
+            
+    def doOpen (self):
+        if self.fname is '':
+            return sys.stdin
+        else:
+            return open(self.fname)
+        
+    def readFasta (self):
+        
+        header = ''
+        sequence = ''
+        
+        with self.doOpen() as fileH:
+            
+            header = ''
+            sequence = ''
+            
+            # skip to first fasta header
+            line = fileH.readline()
+            while not line.startswith('>') :
+                line = fileH.readline()
+            header = line[1:].rstrip()
+
+            for line in fileH:
+                if line.startswith ('>'):
+                    yield header,sequence
+                    header = line[1:].rstrip()
+                    sequence = ''
+                else :
+                    sequence += ''.join(line.rstrip().split()).upper()
+
+        yield header,sequence
+'''
+########################################################################
+# Main
+# Here is the main program
+# Main Pseudo Code. The first step is to find all the powerset of the sequences. To do 
+this, we have to iterate through the sequences in the fastA file. To find powerset
+use a for loop to iterate through the sequence. Each time it loops add the powerset into
+a temporary set list. Once the forloop reached the of the sequence and found all
+the powerset for that specific sequence, add it to the overall powerset list. Repeat this 
+for all sequences in the FastA. Once all the power sets are found create a find unique 
+function that find all the unique values of the powerset for each specific sequence in the
+fastA. To do this simply compare the powerset of sequence to the powerset of all the sequences.
+I have done this using a dictionary with the sequene being the key and the power set being
+the value. After the unique values have been found, search for the essential values. To do this
+find all the non essentials in the unique and substract those values from the values in the unqiue
+sets. This will give all the essential values in a set. Now that all the essentials are found,
+map the essential values to the sequence to get the position. After you found all the essentials
+and it's corresponding position in the sequence, print it out.
+
+Input File: FastA with tRNA name and sequence
+    Ex. Command: python3 findUnique.py <bos-tRna.fa> out.txt
+
+Output(s):
+    tRNA name, sequence, unique and essential t-RNA, and aligned to the 
+    sequence
+
+    Ex. Output 
+     tRNA | Tyr | QUA | Bos taurus | mitochondrial
+GGUAAAAUKLCUGAGCAAAGCAUPAGACUQUA*APCUAAAGAUAGAGGUPUGACUCCUCUUUUUACCACCA
+GGUAA
+.GUAAAAU
+.....AAUK
+......AUKL
+........KLCU
+.........LCUG
+..........CUGAG
+...........UGAGC
+............GAGCAA
+..............GCAAA
+..................AGCAU
+.....................AUPA
+.......................PAGA
+..........................ACUQ
+.............................QUA
+..............................UA*
+................................*AP
+..................................PCUAAA
+....................................UAAAGA
+.....................................AAAGAU
+.......................................AGAUAG
+........................................GAUAGA
+............................................GAGGUP
+...............................................GUPU
+................................................UPUG
+.................................................PUGAC
+...................................................GACUC
+.....................................................CUCCUCU
+......................................................UCCUCUU
+........................................................CUCUUU
+.........................................................UCUUUUU
+...........................................................UUUUUA
+............................................................UUUUAC
+.............................................................UUUACCA
+................................................................ACCAC
+########################################################################
+'''
+class UniqueFinder:
+
+    
+    def __init__(self, sequence=''):
+        self.seq = sequence
+        self.powerdict = {}  # Collection of all the powerset of a sequence in a dict
+
+    '''
+    Filters through the data removing '-' & '_'
+    '''
+    def filter(self, nSeq):
+        seq = nSeq.replace('-','').replace('_','')
+        return seq
+    '''
+    Finds the power set of all the sequences and store them in a dictionary called
+    power dict with the key being the sequence and the value being its powerset
+    '''
+    def powerSet(self, sequence):
+        temppowerset = set()
+
+        for i in range(len(sequence)):
+            for j in range(i + 1, len(sequence) + 1):
+                pset = (sequence[i:j])
+                temppowerset.add(pset)
+                
+        self.powerdict[sequence] = temppowerset
+    
+    ''' Finds all the unique powersets'''
+    def findUnique(self, sequence):
+        tseq = self.powerdict[sequence]
+        copytseq = tseq.copy()
+
+        ''' Initialize objects as sets '''
+        keypowerdict = set()
+        valuepowerdict = set()
+
+        # Gathers all the keys not equal to sequence
+        for key in self.powerdict:
+            if key != sequence:
+                keypowerdict.add(key)
+
+        '''
+        Gather all the values of the dictionary, holding all the power sets, 
+        except the powerset in the current sequence and adds it a set
+        '''
+        for key in keypowerdict:
+            valuepowerdict = valuepowerdict.union(self.powerdict[key])
+            
+        '''
+        Compares the powerset of the current sequence and the powerset
+        of all the sequence and finds all the unique powersets
+        '''
+        copytseq.difference_update(valuepowerdict)
+
+        return copytseq
+
+    ''' Finds all the essential powersets'''
+    def findEssentials(self, essentials):
+        ''' Initialize object as set'''
+        nonessentials = set()
+        tempset = set()
+
+        ''' Copy input powerset into an object'''
+        copyunqiue = essentials.copy()
+
+        ''' Finds all the nonessentials from the unique sets'''
+        for sub in essentials:
+            tempset.add(sub)
+            copyunqiue.difference_update(tempset)
+            
+            for copysub in copyunqiue:
+                if copysub in sub:
+                    nonessentials.add(sub)
+            tempset.clear()
+            copyunqiue.add(sub)
+
+        ''' Removes all the nonessential values from the unqiue set'''
+        essentials.difference_update(list(nonessentials))  
+        return essentials
+
+    # Returns all the indexes of the esssential set
+    def indexes(self, essentialset, sequence):
+
+        sub = ''.join(essentialset)
+       
+        listindexes = [] 
+        
+        i = sequence.find(sub, 0)
+        
+        while i >= 0:
+            listindexes.append(i)
+            i = sequence.find(sub, i + 1)
+        
+        return(listindexes)
+
+
+def main(inCL=None):
+    # start = time.time()
+    ''' Takes in STDN and prints it to STOUT '''
+    '''
+    inputFile = sys.argv[1]
+    fastaReader = FastAreader(inputFile)
+    '''
+    fastaReader= FastAreader()
+    # Initialize uniqueFinder
+    uniqueFinder = UniqueFinder()
+
+    # To be used to store new amino acid, header, seq
+    newFile = []
+
+    '''
+    Iterates through the eader and sequences in the Fasta file.
+    The purpose of this for loop is to be able store the powersets
+    into a dictionary and adds the headers info into a new object
+    to be sorted.
+    '''
+    for header, sequence in fastaReader.readFasta():
+
+        # Filter thru the sequence
+        newSequence = uniqueFinder.filter(sequence)
+
+        # Appends new data into a List
+        newFile.append((header[8:11], header, sequence, newSequence))
+
+        # Finds the powerSet of the sequence
+        uniqueFinder.powerSet(newSequence)
+    
+    '''Sorts the sequences by amino acid'''  
+    newFile.sort()
+
+    ''' 
+    Finds all the unique and essential powersets for each
+    sequence and prints it out
+    New sequence is the Filtered sequence without ('_',"-")
+    '''
+    for aa, header, sequence, newSequence in newFile:
+        # Prints the header and it's sequence
+        print(header)
+        print(sequence)
+        unique = set()
+        sortedEssential = []
+
+        # Find all the unique values of the sequence
+        unique = uniqueFinder.findUnique(newSequence)
+        
+        # Finds all essentials
+        for essentials in uniqueFinder.findEssentials(unique):
+
+            # Finds the position of the essentials in the sequence
+            indexes = uniqueFinder.indexes(essentials, newSequence)
+            
+            ''' 
+            Stores the essential values and the position into an object
+            to be sorted
+            '''
+            for pos in indexes:
+                match = (essentials, pos)
+                sortedEssential.append(match)
+
+        ''' Sorts the essential list by its position'''
+        sortedEssential.sort(key=lambda tup: tup[1])
+
+        '''Print it all out'''
+        for sub in sortedEssential:
+            print("{0}{1}".format(sub[1]*".", sub[0])) # '*'.'' Prints a '.' from the start to the essential index
+            
+    #end = time.time()
+    #print(end - start)
+
+
+
+if __name__ == "__main__":
+    main()  
